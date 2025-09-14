@@ -1,26 +1,11 @@
 <!DOCTYPE html>
 <html lang="it">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>EdilManager</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-
-
-
-  <!-- Manifest per PWA -->
-  <link rel="manifest" href="data:application/manifest+json,{
-    &quot;name&quot;:&quot;EdilManager&quot;,
-    &quot;short_name&quot;:&quot;EdilMgr&quot;,
-    &quot;start_url&quot;:&quot;.&quot;,
-    &quot;display&quot;:&quot;standalone&quot;,
-    &quot;background_color&quot;:&quot;#ffffff&quot;,
-    &quot;theme_color&quot;:&quot;#d35400&quot;,
-    &quot;icons&quot;:[]
-  }">
-
+  <title>EdilManager - Edilkimi</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <style>
     :root {
       --bg: #fff5e6;
@@ -66,7 +51,7 @@
       margin-bottom: 6px;
       border-left: 5px solid;
     }
-    .entrate { border-color: green; }
+    .entrata { border-color: green; }
     .uscita { border-color: red; }
     .azioni { float: right; }
     canvas { max-width: 100%; margin-top: 10px; }
@@ -80,14 +65,13 @@
     <button onclick="toggleTheme()">🌓 Tema</button>
     <button onclick="exportJSON()">💾 Backup</button>
     <input type="file" onchange="importJSON(event)" />
+    <button onclick="esportaPDF()">📄 Esporta PDF</button>
   </div>
-  <button onclick="esportaPDF()">📄 Esporta PDF</button>
-
 
   <div class="box">
     <form id="form">
       <select id="tipo">
-        <option value="entrate">Entrate</option>
+        <option value="entrata">Entrata</option>
         <option value="uscita">Uscita</option>
       </select>
       <input type="number" id="importo" placeholder="Importo lordo (€)" required step="0.01">
@@ -116,168 +100,181 @@
     <ul id="lista"></ul>
   </div>
 
-<script>
-let dati = JSON.parse(localStorage.getItem('movimenti')) || [];
-let grafico;
+  <script>
+    let dati = JSON.parse(localStorage.getItem('movimenti')) || [];
+    let grafico;
 
-function aggiorna() {
-  let saldo = 0, iva = 0, netto = 0;
-  document.getElementById('lista').innerHTML = '';
-  dati.forEach((m, i) => {
-    const imp = parseFloat(m.importo);
-    saldo += m.tipo === 'entrata' ? imp : -imp;
-    iva += imp * 0.22;
-    netto += imp * 0.78;
-    const li = document.createElement('li');
-    li.className = m.tipo;
-    li.innerHTML = `<strong>${m.tipo === 'entrate' ? '+' : '-'} €${imp.toFixed(2)}</strong> - ${m.categoria} - ${m.progetto} - ${m.data} 
-      ${m.nota ? ' - ' + m.nota : ''} 
-      ${m.ricevuta ? `<a href="${m.ricevuta}" target="_blank">📎</a>` : ''}
-      <span class="azioni">
-        <button onclick="modifica(${i})">✏️</button>
-        <button onclick="rimuovi(${i})">🗑️</button>
-      </span>`;
-    document.getElementById('lista').appendChild(li);
-  });
-  document.getElementById('saldo').textContent = '€' + saldo.toFixed(2);
-  document.getElementById('iva').textContent = '€' + iva.toFixed(2);
-  document.getElementById('netto').textContent = '€' + netto.toFixed(2);
-  aggiornaGrafico();
-  aggiornaCategorie();
-  localStorage.setItem('movimenti', JSON.stringify(dati));
-}
-
-function aggiornaGrafico() {
-  const entrate = dati.filter(m => m.tipo === 'entrate').reduce((a, b) => a + parseFloat(b.importo), 0);
-  const uscite = dati.filter(m => m.tipo === 'uscita').reduce((a, b) => a + parseFloat(b.importo), 0);
-  const ctx = document.getElementById('grafico').getContext('2d');
-  if (grafico) grafico.destroy();
-  grafico = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: ['Entrate', 'Uscite'],
-      datasets: [{
-        label: 'Totale',
-        data: [entrate, uscite],
-        backgroundColor: ['green', 'red']
-      }]
+    function aggiorna() {
+      let saldo = 0, iva = 0, netto = 0;
+      document.getElementById('lista').innerHTML = '';
+      dati.forEach((m, i) => {
+        const imp = parseFloat(m.importo);
+        saldo += m.tipo === 'entrata' ? imp : -imp;
+        iva += imp * 0.22;
+        netto += imp * 0.78;
+        const li = document.createElement('li');
+        li.className = m.tipo;
+        li.innerHTML = `<strong>${m.tipo === 'entrata' ? '+' : '-'} €${imp.toFixed(2)}</strong> - ${m.categoria} - ${m.progetto} - ${m.data} 
+          ${m.nota ? ' - ' + m.nota : ''} 
+          ${m.ricevuta ? `<a href="${m.ricevuta}" target="_blank">📎</a>` : ''}
+          <span class="azioni">
+            <button onclick="modifica(${i})">✏️</button>
+            <button onclick="rimuovi(${i})">🗑️</button>
+          </span>`;
+        document.getElementById('lista').appendChild(li);
+      });
+      document.getElementById('saldo').textContent = '€' + saldo.toFixed(2);
+      document.getElementById('iva').textContent = '€' + iva.toFixed(2);
+      document.getElementById('netto').textContent = '€' + netto.toFixed(2);
+      aggiornaGrafico();
+      aggiornaCategorie();
+      localStorage.setItem('movimenti', JSON.stringify(dati));
     }
-  });
-}
 
-function aggiornaCategorie() {
-  const catSel = document.getElementById('categoria');
-  const categorie = [...new Set(dati.map(m => m.categoria))];
-  catSel.innerHTML = categorie.map(c => `<option value="${c}">${c}</option>`).join('');
-}
+    function aggiornaGrafico() {
+      const entrate = dati.filter(m => m.tipo === 'entrata').reduce((a, b) => a + parseFloat(b.importo), 0);
+      const uscite = dati.filter(m => m.tipo === 'uscita').reduce((a, b) => a + parseFloat(b.importo), 0);
+      const ctx = document.getElementById('grafico').getContext('2d');
+      if (grafico) grafico.destroy();
+      grafico = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: ['Entrate', 'Uscite'],
+          datasets: [{
+            label: 'Totale',
+            data: [entrate, uscite],
+            backgroundColor: ['green', 'red']
+          }]
+        }
+      });
+    }
 
-function modifica(i) {
-  const m = dati[i];
-  document.getElementById('tipo').value = m.tipo;
-  document.getElementById('importo').value = m.importo;
-  document.getElementById('nota').value = m.nota;
-  document.getElementById('data').value = m.data;
-  document.getElementById('progetto').value = m.progetto;
-  document.getElementById('editIndex').value = i;
-}
+    function aggiornaCategorie() {
+      const catSel = document.getElementById('categoria');
+      const categorie = [...new Set(dati.map(m => m.categoria))];
+      catSel.innerHTML = categorie.map(c => `<option value="${c}">${c}</option>`).join('');
+    }
 
-function rimuovi(i) {
-  dati.splice(i, 1);
-  aggiorna();
-}
+    function modifica(i) {
+      const m = dati[i];
+      tipoEl.value = m.tipo;
+      importoEl.value = m.importo;
+      notaEl.value = m.nota;
+      dataEl.value = m.data;
+      progettoEl.value = m.progetto;
+      editIndexEl.value = i;
+    }
 
-document.getElementById('form').addEventListener('submit', async e => {
-  e.preventDefault();
-  const tipo = tipoEl.value;
-  const importo = parseFloat(importoEl.value);
-  const nota = notaEl.value;
-  const data = dataEl.value || new Date().toISOString().split('T')[0];
-  const progetto = progettoEl.value || 'Generale';
-  const cat = catNewEl.value || catEl.value || 'Altro';
-  const file = ricevutaEl.files[0];
-  let ricevuta = '';
+    function rimuovi(i) {
+      dati.splice(i, 1);
+      aggiorna();
+    }
 
-  if (file) {
-    ricevuta = await new Promise(res => {
-      const reader = new FileReader();
-      reader.onload = () => res(reader.result);
-      reader.readAsDataURL(file);
+    document.getElementById('form').addEventListener('submit', async e => {
+      e.preventDefault();
+      const tipo = tipoEl.value;
+      const importo = parseFloat(importoEl.value);
+      const nota = notaEl.value;
+      const data = dataEl.value || new Date().toISOString().split('T')[0];
+      const progetto = progettoEl.value || 'Generale';
+      const cat = catNewEl.value || catEl.value || 'Altro';
+      const file = ricevutaEl.files[0];
+      let ricevuta = '';
+
+      if (file) {
+        ricevuta = await new Promise(res => {
+          const reader = new FileReader();
+          reader.onload = () => res(reader.result);
+          reader.readAsDataURL(file);
+        });
+      }
+
+      const mov = { tipo, importo, nota, data, progetto, categoria: cat, ricevuta };
+      const i = editIndexEl.value;
+      if (i === '') dati.push(mov); else dati[i] = mov;
+
+      e.target.reset();
+      aggiorna();
     });
-  }
 
-  const mov = { tipo, importo, nota, data, progetto, categoria: cat, ricevuta };
-  const i = editIndexEl.value;
-  if (i === '') dati.push(mov); else dati[i] = mov;
-
-  e.target.reset();
-  aggiorna();
-});
-
-function exportJSON() {
-  const blob = new Blob([JSON.stringify(dati)], {type: 'application/json'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'backup-EdilKimi.json';
-  a.click();
-}
-
-function importJSON(e) {
-  const file = e.target.files[0];
-  const reader = new FileReader();
-  reader.onload = () => {
-    dati = JSON.parse(reader.result);
-    aggiorna();
-  };
-  reader.readAsText(file);
-}
-
-function toggleTheme() {
-  document.body.classList.toggle('dark');
-}
-
-const tipoEl = document.getElementById('tipo');
-const importoEl = document.getElementById('importo');
-const notaEl = document.getElementById('nota');
-const dataEl = document.getElementById('data');
-const progettoEl = document.getElementById('progetto');
-const ricevutaEl = document.getElementById('ricevuta');
-const catEl = document.getElementById('categoria');
-const catNewEl = document.getElementById('categoria-nuova');
-const editIndexEl = document.getElementById('editIndex');
-
-aggiorna();
-async function esportaPDF() {
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF();
-  doc.setFontSize(14);
-  doc.text('Movimenti - EdilKimi', 10, 10);
-
-  let y = 20;
-  dati.forEach((m, i) => {
-    const riga = `${i + 1}. ${m.tipo.toUpperCase()} - €${m.importo.toFixed(2)} - ${m.categoria} - ${m.progetto} - ${m.data} ${m.nota ? '- ' + m.nota : ''}`;
-    doc.text(riga, 10, y);
-    y += 8;
-    if (y > 270) {
-      doc.addPage();
-      y = 20;
+    function exportJSON() {
+      const blob = new Blob([JSON.stringify(dati)], {type: 'application/json'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'backup-EdilKimi.json';
+      a.click();
     }
-  });
 
-  // Calcolo totali
-  const iva = dati.reduce((sum, m) => sum + (m.importo * 0.22), 0).toFixed(2);
-  const netto = dati.reduce((sum, m) => sum + (m.importo * 0.78), 0).toFixed(2);
+    function importJSON(e) {
+      const file = e.target.files[0];
+      const reader = new FileReader();
+      reader.onload = () => {
+        dati = JSON.parse(reader.result);
+        aggiorna();
+      };
+      reader.readAsText(file);
+    }
 
-  // Aggiunta spazio (br equivalente)
-  y += 10;              
-  doc.setFontSize(12);
-  doc.text(`Totale IVA: €${iva}`, 10, y);
-  y += 8;
-  doc.text(`Totale Netto: €${netto}`, 10, y);
+    function toggleTheme() {
+      document.body.classList.toggle('dark');
+    }
 
-  doc.save('movimenti-EdilKimi.pdf');
-}
+    async function esportaPDF() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
 
+      doc.setFontSize(16);
+      doc.text('Edilkimi', 10, 10);
+      doc.setFontSize(10);
+      doc.text('Via Provinciale Roma, 27  Capena (RM)', 10, 16);
+      doc.text(' +39 3892670477 —  info@edilkimi.it', 10, 22);
+      doc.text(' www.edilkimi.it — P.IVA 18145421006', 10, 28);
 
-</script>
+      doc.setFontSize(13);
+      doc.text('Movimenti - EdilKimi', 10, 36);
+      const dataOggi = new Date().toLocaleDateString();
+      doc.setFontSize(10);
+      doc.text(`Data di stampa: ${dataOggi}`, 150, 10);
+
+      let y = 46;
+      doc.setFontSize(11);
+      doc.text('N.  Tipo     Importo     Categoria     Progetto     Data     Note', 10, y);
+      y += 8;
+
+      doc.setFontSize(10);
+      dati.forEach((m, i) => {
+        const riga = `${i + 1}.  ${m.tipo.toUpperCase()}   €${m.importo.toFixed(2)}   ${m.categoria}   ${m.progetto}   ${m.data}   ${m.nota || ''}`;
+        doc.text(riga, 10, y);
+        y += 7;
+        if (y > 270) {
+          doc.addPage();
+          y = 20;
+        }
+      });
+
+      y += 10;
+      const iva = dati.reduce((sum, m) => sum + (m.importo * 0.22), 0).toFixed(2);
+      const netto = dati.reduce((sum, m) => sum + (m.importo * 0.78), 0).toFixed(2);
+      doc.setFontSize(12);
+      doc.text(`Totale IVA: €${iva}`, 10, y);
+      y += 8;
+      doc.text(`Totale Netto: €${netto}`, 10, y);
+
+      doc.save('movimenti-EdilKimi.pdf');
+    }
+
+    // Global vars
+    const tipoEl = document.getElementById('tipo');
+    const importoEl = document.getElementById('importo');
+    const notaEl = document.getElementById('nota');
+    const dataEl = document.getElementById('data');
+    const progettoEl = document.getElementById('progetto');
+    const ricevutaEl = document.getElementById('ricevuta');
+    const catEl = document.getElementById('categoria');
+    const catNewEl = document.getElementById('categoria-nuova');
+    const editIndexEl = document.getElementById('editIndex');
+
+    aggiorna();
+  </script>
 </body>
 </html>
