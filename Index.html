@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>EdilManager</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+
+
+  <!-- Manifest per PWA -->
+  <link rel="manifest" href="data:application/manifest+json,{
+    &quot;name&quot;:&quot;EdilManager&quot;,
+    &quot;short_name&quot;:&quot;EdilMgr&quot;,
+    &quot;start_url&quot;:&quot;.&quot;,
+    &quot;display&quot;:&quot;standalone&quot;,
+    &quot;background_color&quot;:&quot;#ffffff&quot;,
+    &quot;theme_color&quot;:&quot;#d35400&quot;,
+    &quot;icons&quot;:[]
+  }">
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    :root {
+      --bg: #fff5e6;
+      --text: #000;
+      --box: #ffe0b2;
+    }
+    body.dark {
+      --bg: #1e1e1e;
+      --text: #eee;
+      --box: #333;
+    }
+    body {
+      font-family: sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 20px;
+    }
+    h1 { color: #d35400; }
+    form, .box {
+      background: var(--box);
+      padding: 12px;
+      margin-bottom: 20px;
+      border-radius: 8px;
+    }
+    input, select {
+      padding: 6px;
+      margin: 5px 5px 5px 0;
+    }
+    button {
+      padding: 6px 12px;
+      background: #d35400;
+      color: white;
+      border: none;
+      cursor: pointer;
+      border-radius: 4px;
+    }
+    ul { padding: 0; list-style: none; }
+    li {
+      background: white;
+      color: black;
+      padding: 10px;
+      margin-bottom: 6px;
+      border-left: 5px solid;
+    }
+    .entrate { border-color: green; }
+    .uscita { border-color: red; }
+    .azioni { float: right; }
+    canvas { max-width: 100%; margin-top: 10px; }
+  </style>
+</head>
+
+<body>
+  <h1>EdilKimi</h1>
+
+  <div class="box">
+    <button onclick="toggleTheme()">🌓 Tema</button>
+    <button onclick="exportJSON()">💾 Backup</button>
+    <input type="file" onchange="importJSON(event)" />
+  </div>
+  <button onclick="esportaPDF()">📄 Esporta PDF</button>
+
+
+  <div class="box">
+    <form id="form">
+      <select id="tipo">
+        <option value="entrate">Entrate</option>
+        <option value="uscita">Uscita</option>
+      </select>
+      <input type="number" id="importo" placeholder="Importo lordo (€)" required step="0.01">
+      <select id="categoria"></select>
+      <input type="text" id="categoria-nuova" placeholder="Nuova categoria">
+      <input type="text" id="nota" placeholder="Descrizione">
+      <input type="date" id="data">
+      <input type="text" id="progetto" placeholder="Progetto/Cantiere">
+      <input type="file" id="ricevuta">
+      <input type="hidden" id="editIndex">
+      <button type="submit">Salva</button>
+    </form>
+  </div>
+
+  <div class="box">
+    <strong>Saldo: <span id="saldo">€0.00</span></strong><br>
+    IVA totale: <span id="iva">€0.00</span><br>
+    Netto: <span id="netto">€0.00</span>
+  </div>
+
+  <div class="box">
+    <canvas id="grafico"></canvas>
+  </div>
+
+  <div class="box">
+    <ul id="lista"></ul>
+  </div>
+
+<script>
+let dati = JSON.parse(localStorage.getItem('movimenti')) || [];
+let grafico;
+
+function aggiorna() {
+  let saldo = 0, iva = 0, netto = 0;
+  document.getElementById('lista').innerHTML = '';
+  dati.forEach((m, i) => {
+    const imp = parseFloat(m.importo);
+    saldo += m.tipo === 'entrata' ? imp : -imp;
+    iva += imp * 0.22;
+    netto += imp * 0.78;
+    const li = document.createElement('li');
+    li.className = m.tipo;
+    li.innerHTML = `<strong>${m.tipo === 'entrate' ? '+' : '-'} €${imp.toFixed(2)}</strong> - ${m.categoria} - ${m.progetto} - ${m.data} 
+      ${m.nota ? ' - ' + m.nota : ''} 
+      ${m.ricevuta ? `<a href="${m.ricevuta}" target="_blank">📎</a>` : ''}
+      <span class="azioni">
+        <button onclick="modifica(${i})">✏️</button>
+        <button onclick="rimuovi(${i})">🗑️</button>
+      </span>`;
+    document.getElementById('lista').appendChild(li);
+  });
+  document.getElementById('saldo').textContent = '€' + saldo.toFixed(2);
+  document.getElementById('iva').textContent = '€' + iva.toFixed(2);
+  document.getElementById('netto').textContent = '€' + netto.toFixed(2);
+  aggiornaGrafico();
+  aggiornaCategorie();
+  localStorage.setItem('movimenti', JSON.stringify(dati));
+}
+
+function aggiornaGrafico() {
+  const entrate = dati.filter(m => m.tipo === 'entrate').reduce((a, b) => a + parseFloat(b.importo), 0);
+  const uscite = dati.filter(m => m.tipo === 'uscita').reduce((a, b) => a + parseFloat(b.importo), 0);
+  const ctx = document.getElementById('grafico').getContext('2d');
+  if (grafico) grafico.destroy();
+  grafico = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: ['Entrate', 'Uscite'],
+      datasets: [{
+        label: 'Totale',
+        data: [entrate, uscite],
+        backgroundColor: ['green', 'red']
+      }]
+    }
+  });
+}
+
+function aggiornaCategorie() {
+  const catSel = document.getElementById('categoria');
+  const categorie = [...new Set(dati.map(m => m.categoria))];
+  catSel.innerHTML = categorie.map(c => `<option value="${c}">${c}</option>`).join('');
+}
+
+function modifica(i) {
+  const m = dati[i];
+  document.getElementById('tipo').value = m.tipo;
+  document.getElementById('importo').value = m.importo;
+  document.getElementById('nota').value = m.nota;
+  document.getElementById('data').value = m.data;
+  document.getElementById('progetto').value = m.progetto;
+  document.getElementById('editIndex').value = i;
+}
+
+function rimuovi(i) {
+  dati.splice(i, 1);
+  aggiorna();
+}
+
+document.getElementById('form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const tipo = tipoEl.value;
+  const importo = parseFloat(importoEl.value);
+  const nota = notaEl.value;
+  const data = dataEl.value || new Date().toISOString().split('T')[0];
+  const progetto = progettoEl.value || 'Generale';
+  const cat = catNewEl.value || catEl.value || 'Altro';
+  const file = ricevutaEl.files[0];
+  let ricevuta = '';
+
+  if (file) {
+    ricevuta = await new Promise(res => {
+      const reader = new FileReader();
+      reader.onload = () => res(reader.result);
+      reader.readAsDataURL(file);
+    });
+  }
+
+  const mov = { tipo, importo, nota, data, progetto, categoria: cat, ricevuta };
+  const i = editIndexEl.value;
+  if (i === '') dati.push(mov); else dati[i] = mov;
+
+  e.target.reset();
+  aggiorna();
+});
+
+function exportJSON() {
+  const blob = new Blob([JSON.stringify(dati)], {type: 'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'backup-EdilKimi.json';
+  a.click();
+}
+
+function importJSON(e) {
+  const file = e.target.files[0];
+  const reader = new FileReader();
+  reader.onload = () => {
+    dati = JSON.parse(reader.result);
+    aggiorna();
+  };
+  reader.readAsText(file);
+}
+
+function toggleTheme() {
+  document.body.classList.toggle('dark');
+}
+
+const tipoEl = document.getElementById('tipo');
+const importoEl = document.getElementById('importo');
+const notaEl = document.getElementById('nota');
+const dataEl = document.getElementById('data');
+const progettoEl = document.getElementById('progetto');
+const ricevutaEl = document.getElementById('ricevuta');
+const catEl = document.getElementById('categoria');
+const catNewEl = document.getElementById('categoria-nuova');
+const editIndexEl = document.getElementById('editIndex');
+
+aggiorna();
+async function esportaPDF() {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  doc.setFontSize(14);
+  doc.text('Movimenti - EdilKimi', 10, 10);
+
+  let y = 20;
+  dati.forEach((m, i) => {
+    const riga = `${i + 1}. ${m.tipo.toUpperCase()} - €${m.importo.toFixed(2)} - ${m.categoria} - ${m.progetto} - ${m.data} ${m.nota ? '- ' + m.nota : ''}`;
+    doc.text(riga, 10, y);
+    y += 8;
+    if (y > 270) {
+      doc.addPage();
+      y = 20;
+    }
+  });
+
+  // Calcolo totali
+  const iva = dati.reduce((sum, m) => sum + (m.importo * 0.22), 0).toFixed(2);
+  const netto = dati.reduce((sum, m) => sum + (m.importo * 0.78), 0).toFixed(2);
+
+  // Aggiunta spazio (br equivalente)
+  y += 10;              
+  doc.setFontSize(12);
+  doc.text(`Totale IVA: €${iva}`, 10, y);
+  y += 8;
+  doc.text(`Totale Netto: €${netto}`, 10, y);
+
+  doc.save('movimenti-EdilKimi.pdf');
+}
+
+
+</script>
+</body>
+</html>
